@@ -60,7 +60,7 @@ function strArray(value: unknown): string[] {
 
 export function toSiteInfo(doc: Doc | null): SiteInfo {
   return {
-    name: str(doc?.name, "E-Fashion"),
+    name: str("E-Fashion"),
     tagline: str(doc?.tagline, "Style meets substance"),
     description: str(doc?.description),
     phone: str(doc?.phone),
