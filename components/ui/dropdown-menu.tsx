@@ -116,6 +116,40 @@ function DropdownMenuSeparator({
   )
 }
 
+function DropdownMenuRadioGroup(
+  props: React.ComponentProps<typeof BaseMenu.RadioGroup>
+) {
+  return <BaseMenu.RadioGroup data-slot="dropdown-menu-radio-group" {...props} />
+}
+
+function DropdownMenuRadioItem({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof BaseMenu.RadioItem>) {
+  return (
+    <BaseMenu.RadioItem
+      data-slot="dropdown-menu-radio-item"
+      className={cn(
+        "relative flex cursor-pointer select-none items-center gap-2 rounded-md py-1.5 pr-2 pl-8 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        className
+      )}
+      {...props}
+    >
+      {children}
+      <BaseMenu.RadioItemIndicator
+        data-slot="dropdown-menu-radio-item-indicator"
+        className="absolute start-2 flex size-3.5 items-center justify-center"
+      >
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-6.5 6.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06L6.75 9.94l5.97-5.97a.75.75 0 0 1 1.06 0Z" />
+        </svg>
+      </BaseMenu.RadioItemIndicator>
+    </BaseMenu.RadioItem>
+  )
+}
+
 function DropdownMenuSub(props: React.ComponentProps<typeof BaseMenu.SubmenuRoot>) {
   return <BaseMenu.SubmenuRoot {...props} />
 }
@@ -171,6 +205,8 @@ export {
   DropdownMenuItem,
   DropdownMenuShortcut,
   DropdownMenuSeparator,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
