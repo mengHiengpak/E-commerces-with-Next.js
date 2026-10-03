@@ -1,4 +1,5 @@
 import type { Doc } from "@/lib/service/catalog.service";
+import { degrade } from "@/lib/service/ready";
 import {
   createFooterColumn,
   createSocialLink,
@@ -153,22 +154,42 @@ function toPaymentMethods(raw: unknown): PaymentMethod[] {
  * Everything the header, footer and mobile drawer need.
  *
  * Falls back to empty lists rather than throwing: this runs in the root layout,
- * so an exception here takes down every route in the app.
+ * so an exception here takes down every route in the app. That covers the read
+ * failing and not just a document being absent — an unreachable database, a
+ * missing `MONGODB_URI` or a dropped connection would otherwise replace every
+ * page with Next's "This page couldn't load" screen, which is what a thrown
+ * error from here produces.
  */
 export async function getSiteChrome(): Promise<SiteChrome> {
-  const docs = await findSiteChromeDocs();
+  try {
+    const docs = await findSiteChromeDocs();
 
-  return {
-    site: toSiteInfo(docs.site),
-    languages: toLanguages(docs.languages),
-    footerColumns: toFooterColumns(docs.footerColumns),
-    socials: toSocials(docs.socials),
-    paymentMethods: toPaymentMethods(docs.site?.payment_methods),
-  };
+    return {
+      site: toSiteInfo(docs.site),
+      languages: toLanguages(docs.languages),
+      footerColumns: toFooterColumns(docs.footerColumns),
+      socials: toSocials(docs.socials),
+      paymentMethods: toPaymentMethods(docs.site?.payment_methods),
+    };
+  } catch (error) {
+    // Logged rather than swallowed: the page still renders, but the reason the
+    // chrome is empty belongs in the server log.
+    console.error("getSiteChrome: falling back to empty chrome", error);
+
+    return {
+      site: toSiteInfo(null),
+      languages: [],
+      footerColumns: [],
+      socials: [],
+      paymentMethods: [],
+    };
+  }
 }
 
 export async function getSiteInfo(): Promise<SiteInfo> {
-  return toSiteInfo(await findSiteSettings());
+  return degrade<SiteInfo>("getSiteInfo", toSiteInfo(null), async () =>
+    toSiteInfo(await findSiteSettings()),
+  );
 }
 
 export async function saveSiteInfo(payload: Doc): Promise<SiteInfo> {
@@ -241,14 +262,27 @@ export async function removeSocialLink(id: string): Promise<void> {
   if (!deleted) throw new NotFoundError("Social link not found");
 }
 
+/**
+ * Site media for the home, about and brand pages.
+ *
+ * Degrading to an empty list is safe here in a way it is not for the catalog: a
+ * missing logo strip or promo slide leaves the page's layout intact, whereas a
+ * missing product cannot be faked.
+ */
 export async function listBrandLogos(): Promise<BrandLogo[]> {
-  return toBrandLogos(await findBrandLogos());
+  return degrade<BrandLogo[]>("listBrandLogos", [], async () =>
+    toBrandLogos(await findBrandLogos()),
+  );
 }
 
 export async function listEditorialImages(): Promise<EditorialImage[]> {
-  return toEditorialImages(await findEditorialImages());
+  return degrade<EditorialImage[]>("listEditorialImages", [], async () =>
+    toEditorialImages(await findEditorialImages()),
+  );
 }
 
 export async function listPromoSlides(): Promise<PromoSlide[]> {
-  return toPromoSlides(await findPromoSlides());
+  return degrade<PromoSlide[]>("listPromoSlides", [], async () =>
+    toPromoSlides(await findPromoSlides()),
+  );
 }

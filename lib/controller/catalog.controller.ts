@@ -1,6 +1,7 @@
 import { isValidObjectId } from "mongoose";
 
 import { NotFoundError, ValidationError } from "@/lib/errors";
+import { degrade } from "@/lib/service/ready";
 import {
   createCategory,
   createCategoryType,
@@ -149,25 +150,40 @@ export type ProductPage = {
   totalPages: number;
 };
 
+/**
+ * What an unreachable catalog looks like: one empty page rather than page zero.
+ *
+ * `totalPages: 1` is deliberate — the grid's own empty state ("No products match
+ * your search") is what a visitor should see, not a "page 1 of 0" control.
+ */
+const EMPTY_PRODUCT_PAGE: ProductPage = {
+  products: [],
+  totalItems: 0,
+  currentPage: 1,
+  totalPages: 1,
+};
+
 export async function listProducts(options: ProductQueryOptions = {}): Promise<ProductPage> {
   // "All" is a UI sentinel, not a category — it must not reach the query layer
   // or it would be treated as a category type name and match nothing.
   const filter =
     !options.filter || options.filter === ALL_FILTER ? undefined : options.filter;
 
-  const { docs, totalItems, currentPage, perPage } = await findProducts({
-    ...options,
-    filter,
-  });
+  return degrade("listProducts", EMPTY_PRODUCT_PAGE, async () => {
+    const { docs, totalItems, currentPage, perPage } = await findProducts({
+      ...options,
+      filter,
+    });
 
-  return {
-    products: docs.map(toProduct),
-    // `excludeId` removes a document without filtering on it, so the count of
-    // everything else is still the right number to paginate against.
-    totalItems,
-    currentPage,
-    totalPages: Math.max(1, Math.ceil(totalItems / perPage)),
-  };
+    return {
+      products: docs.map(toProduct),
+      // `excludeId` removes a document without filtering on it, so the count of
+      // everything else is still the right number to paginate against.
+      totalItems,
+      currentPage,
+      totalPages: Math.max(1, Math.ceil(totalItems / perPage)),
+    };
+  });
 }
 
 export async function getProduct(id: string): Promise<Product> {
@@ -237,8 +253,9 @@ export async function removeProduct(id: string): Promise<void> {
 
 /** "Shop by category" tiles for the home page, linked at their own shop page. */
 export async function listCategoryTiles(): Promise<CategoryTile[]> {
-  const docs = await findCategories();
-  return docs.map(toCategoryTile);
+  return degrade<CategoryTile[]>("listCategoryTiles", [], async () =>
+    (await findCategories()).map(toCategoryTile),
+  );
 }
 
 /**
@@ -246,13 +263,17 @@ export async function listCategoryTiles(): Promise<CategoryTile[]> {
  *
  * Category names come from the `categorytypes` collection, so adding a type in
  * the database adds a tab. `"All"` and `"Discount Deals"` are UI sentinels
- * rather than categories and are appended here.
+ * rather than categories and are appended here — which is also why they are the
+ * whole of the fallback: without a database there are no types to offer, but the
+ * two sentinels still navigate correctly.
  */
 export async function listProductFilters(): Promise<string[]> {
-  const types = await findCategoryTypes();
-  const names = types.map((type) => str(type.category_name)).filter(Boolean);
+  return degrade<string[]>("listProductFilters", [ALL_FILTER, DEALS_FILTER], async () => {
+    const types = await findCategoryTypes();
+    const names = types.map((type) => str(type.category_name)).filter(Boolean);
 
-  return [ALL_FILTER, ...names, DEALS_FILTER];
+    return [ALL_FILTER, ...names, DEALS_FILTER];
+  });
 }
 
 export async function getCategory(id: string): Promise<Doc> {

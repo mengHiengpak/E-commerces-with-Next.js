@@ -1,11 +1,17 @@
 import mongoose from "mongoose";
 
+import { DatabaseUnavailableError } from "@/lib/errors";
+
 /**
  * Single shared Mongoose connection.
  *
  * Next.js reloads server modules on every edit in development, and each reload
  * would otherwise open a fresh pool until MongoDB refuses new connections. The
  * promise is parked on `globalThis` so it survives those reloads.
+ *
+ * Every way this can fail — no `MONGODB_URI`, nothing listening on the host, a
+ * dropped connection — surfaces as `DatabaseUnavailableError`, which is what lets
+ * a page render with empty data instead of replacing itself with an error screen.
  */
 
 type MongooseCache = {
@@ -26,7 +32,7 @@ export async function connectDB(): Promise<typeof mongoose> {
   const uri = process.env.MONGODB_URI;
 
   if (!uri) {
-    throw new Error(
+    throw new DatabaseUnavailableError(
       "MONGODB_URI is not set. Copy .env.example to .env.local and point it at your database.",
     );
   }
@@ -41,7 +47,7 @@ export async function connectDB(): Promise<typeof mongoose> {
     // Drop the rejected promise so the next request retries instead of
     // re-awaiting a permanently failed connection.
     cache.promise = null;
-    throw error;
+    throw new DatabaseUnavailableError("Could not reach MongoDB.", error);
   }
 
   return cache.conn;
