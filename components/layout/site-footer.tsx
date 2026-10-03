@@ -1,8 +1,10 @@
 import Link from "next/link";
+import type { IconType } from "react-icons";
 import {
   FaFacebook,
   FaInstagram,
   FaLinkedin,
+  FaLink,
   FaTwitter,
   FaYoutube,
 } from "react-icons/fa";
@@ -24,7 +26,18 @@ const socialIcons = {
   youtube: FaYoutube,
   instagram: FaInstagram,
   linkedin: FaLinkedin,
-} as const;
+} satisfies Record<string, IconType>;
+
+/**
+ * `SocialLink.id` holds the icon key read from the database, which is a plain
+ * string rather than a key of `socialIcons`, so the lookup is widened and an
+ * unrecognised key falls back to a generic glyph instead of breaking the row.
+ */
+function socialIcon(key: string): IconType {
+  const icons: Record<string, IconType> = socialIcons;
+
+  return icons[key] ?? FaLink;
+}
 
 /**
  * Site footer.
@@ -82,7 +95,7 @@ export function SiteFooter({
 
             <ul className="mt-5 flex items-center gap-2">
               {socials.map((social) => {
-                const Icon = socialIcons[social.id];
+                const Icon = socialIcon(social.id);
                 return (
                   <li key={social.id}>
                     <a
